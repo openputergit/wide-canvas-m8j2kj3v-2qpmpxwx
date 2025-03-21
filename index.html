@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .battery-indicator {
+            width: 100%;
+            height: 20px;
+            background-color: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .battery-level {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .station-marker {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .map-container {
+            height: 200px;
+            background-color: #e5e7eb;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        .map-pin {
+            position: absolute;
+            transform: translate(-50%, -100%);
+        }
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            max-width: 350px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="toast-container"></div>
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <div class="loader"></div>
+            <p class="mt-4 text-gray-700">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Login/Register Section -->
+    <div id="authSection" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <div class="text-center mb-8">
+                <i class="bi bi-lightning-charge-fill text-5xl text-blue-500"></i>
+                <h2 class="text-2xl font-bold mt-2">EV Management System</h2>
+                <p class="text-gray-600 mt-2">Manage your electric vehicles efficiently</p>
+            </div>
+            
+            <div class="flex justify-center mb-6">
+                <button onclick="toggleAuth('login')" id="loginBtn" class="px-4 py-2 mx-2 rounded font-medium bg-blue-500 text-white transition duration-200">Login</button>
+                <button onclick="toggleAuth('register')" id="registerBtn" class="px-4 py-2 mx-2 rounded font-medium bg-gray-300 transition duration-200">Register</button>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="login-email">Email</label>
+                    <input id="login-email" type="email" placeholder="Enter your email" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="login-password">Password</label>
+                    <input id="login-password" type="password" placeholder="Enter your password" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition duration-200 flex items-center justify-center">
+                    <span id="login-btn-text">Login</span>
+                    <div id="login-loader" class="loader hidden" style="width: 20px; height: 20px; border-width: 2px; margin-left: 10px;"></div>
+                </button>
+            </form>
+
+            <form id="registerForm" class="hidden" onsubmit="handleRegister(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="register-name">Full Name</label>
+                    <input id="register-name" type="text" placeholder="Enter your full name" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="register-email">Email</label>
+                    <input id="register-email" type="email" placeholder="Enter your email" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="register-password">Password</label>
+                    <input id="register-password" type="password" placeholder="Create a password" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition duration-200 flex items-center justify-center">
+                    <span id="register-btn-text">Register</span>
+                    <div id="register-loader" class="loader hidden" style="width: 20px; height: 20px; border-width: 2px; margin-left: 10px;"></div>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboardSection" class="hidden">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-lg sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <i class="bi bi-lightning-charge-fill text-3xl text-blue-500"></i>
+                        <span class="ml-2 font-bold text-xl">EVMS</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span id="userName" class="text-gray-600 hidden md:inline-block"></span>
+                        <span id="userEmail" class="text-gray-600 hidden md:inline-block"></span>
+                        <div class="relative">
+                            <button id="notificationBtn" class="text-gray-600 hover:text-blue-500 transition duration-200">
+                                <i class="bi bi-bell"></i>
+                                <span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">3</span>
+                            </button>
+                        </div>
+                        <button onclick="logout()" class="text-red-500 hover:text-red-700 transition duration-200">
+                            <i class="bi bi-box-arrow-right"></i> 
+                            <span class="hidden md:inline-block">Logout</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <!-- Admin Panel -->
+            <div id="adminPanel" class="hidden mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold">Admin Dashboard</h2>
+                    <button id="adminRefreshBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Data
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- User Management -->
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">User Management</h3>
+                        <div class="mb-4">
+                            <div class="relative">
+                                <input id="userSearchInput" type="text" placeholder="Search users..." class="w-full p-3 border rounded-lg pr-10">
+                                <i class="bi bi-search absolute right-3 top-3 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div id="usersList" class="space-y-4 max-h-80 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vehicle Management -->
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Vehicle Management</h3>
+                        <div class="mb-4">
+                            <div class="relative">
+                                <input id="vehicleSearchInput" type="text" placeholder="Search vehicles..." class="w-full p-3 border rounded-lg pr-10">
+                                <i class="bi bi-search absolute right-3 top-3 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div id="vehiclesList" class="space-y-4 max-h-80 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charging Stations -->
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <div class="flex justify-between mb-4">
+                            <h3 class="text-xl font-semibold">Charging Stations</h3>
+                            <button onclick="showAddStationModal()" class="text-blue-500 hover:text-blue-700">
+                                <i class="bi bi-plus-circle"></i> Add
+                            </button>
+                        </div>
+                        <div id="stationsList" class="space-y-4 max-h-80 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Analytics Section -->
+                <div class="mt-8 bg-white p-6 rounded-lg shadow">
+                    <h3 class="text-xl font-semibold mb-4">System Analytics</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Total Users</p>
+                                    <p id="totalUsers" class="text-2xl font-bold">0</p>
+                                </div>
+                                <div class="bg-blue-100 p-3 rounded-full">
+                                    <i class="bi bi-people text-blue-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Total Vehicles</p>
+                                    <p id="totalVehicles" class="text-2xl font-bold">0</p>
+                                </div>
+                                <div class="bg-green-100 p-3 rounded-full">
+                                    <i class="bi bi-car-front text-green-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-purple-50 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Charging Stations</p>
+                                    <p id="totalStations" class="text-2xl font-bold">0</p>
+                                </div>
+                                <div class="bg-purple-100 p-3 rounded-full">
+                                    <i class="bi bi-battery-charging text-purple-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-yellow-50 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Total Revenue</p>
+                                    <p id="totalRevenue" class="text-2xl font-bold">$0</p>
+                                </div>
+                                <div class="bg-yellow-100 p-3 rounded-full">
+                                    <i class="bi bi-currency-dollar text-yellow-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Dashboard -->
+            <div id="userDashboard">
+                <!-- Vehicle Summary -->
+                <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-blue-500 text-white p-6 rounded-lg shadow-lg">
+                        <div class="flex items-center">
+                            <div class="mr-4">
+                                <i class="bi bi-car-front text-4xl"></i>
+                            </div>
+                            <div>
+                                <h3 id="totalUserVehicles" class="text-2xl font-bold">0</h3>
+                                <p class="text-blue-100">Vehicles Registered</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-green-500 text-white p-6 rounded-lg shadow-lg">
+                        <div class="flex items-center">
+                            <div class="mr-4">
+                                <i class="bi bi-battery-full text-4xl"></i>
+                            </div>
+                            <div>
+                                <h3 id="avgBatteryLevel" class="text-2xl font-bold">0%</h3>
+                                <p class="text-green-100">Average Battery Level</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-purple-500 text-white p-6 rounded-lg shadow-lg">
+                        <div class="flex items-center">
+                            <div class="mr-4">
+                                <i class="bi bi-lightning-charge text-4xl"></i>
+                            </div>
+                            <div>
+                                <h3 id="nearbyStationsCount" class="text-2xl font-bold">0</h3>
+                                <p class="text-purple-100">Nearby Charging Stations</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vehicle Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">My Vehicles</h3>
+                            <button onclick="showAddVehicleModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-200">
+                                <i class="bi bi-plus"></i> Add Vehicle
+                            </button>
+                        </div>
+                        <div id="userVehicles" class="space-y-4 max-h-96 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Battery Status</h3>
+                        <div id="vehicleSelect" class="mb-4">
+                            <select id="batteryVehicleSelect" class="w-full p-3 border rounded-lg" onchange="updateBatteryStatus()">
+                                <option value="">Select a vehicle</option>
+                            </select>
+                        </div>
+                        <div id="batteryStatus" class="space-y-4">
+                            <p class="text-gray-500 italic text-center">Select a vehicle to view battery status</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Nearby Stations</h3>
+                        <div id="mapView" class="map-container mb-4">
+                            <!-- Simulated map -->
+                            <div class="absolute inset-0 bg-gray-200">
+                                <!-- User location -->
+                                <div class="map-pin" style="top: 50%; left: 50%;">
+                                    <i class="bi bi-geo-alt-fill text-red-500 text-xl"></i>
+                                </div>
+                                <!-- Stations -->
+                                <div class="map-pin" style="top: 30%; left: 40%;">
+                                    <i class="bi bi-lightning-charge-fill text-green-500"></i>
+                                </div>
+                                <div class="map-pin" style="top: 60%; left: 70%;">
+                                    <i class="bi bi-lightning-charge-fill text-green-500"></i>
+                                </div>
+                                <div class="map-pin" style="top: 40%; left: 65%;">
+                                    <i class="bi bi-lightning-charge-fill text-yellow-500"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="nearbyStations" class="space-y-4 max-h-40 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance and Billing -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Maintenance Schedule</h3>
+                        <div id="maintenanceSchedule" class="space-y-4 max-h-80 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">Billing History</h3>
+                            <div>
+                                <select id="billingFilter" class="p-2 border rounded" onchange="filterBillingHistory()">
+                                    <option value="all">All Transactions</option>
+                                    <option value="charging">Charging Only</option>
+                                    <option value="maintenance">Maintenance Only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="billingHistory" class="space-y-4 max-h-80 overflow-y-auto">
+                            <div class="flex justify-center">
+                                <div class="loader"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Vehicle Modal -->
+    <div id="addVehicleModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-40">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Add New Vehicle</h3>
+                <button onclick="closeAddVehicleModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <form id="addVehicleForm" onsubmit="handleAddVehicle(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicleModel">Vehicle Model</label>
+                    <input id="vehicleModel" type="text" placeholder="e.g. Tesla Model 3" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicleRegistration">Registration Number</label>
+                    <input id="vehicleRegistration" type="text" placeholder="e.g. ABC-123" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicleBatteryCapacity">Battery Capacity (kWh)</label>
+                    <input id="vehicleBatteryCapacity" type="number" placeholder="e.g. 75" min="1" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicleYear">Year</label>
+                    <input id="vehicleYear" type="number" placeholder="e.g. 2023" min="1990" max="2025" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicleColor">Color</label>
+                    <input id="vehicleColor" type="text" placeholder="e.g. Midnight Silver" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" onclick="closeAddVehicleModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition duration-200">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200 flex items-center">
+                        <span>Add Vehicle</span>
+                        <div id="addVehicleLoader" class="loader hidden ml-2" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add Station Modal (Admin) -->
+    <div id="addStationModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-40">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Add New Charging Station</h3>
+                <button onclick="closeAddStationModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <form id="addStationForm" onsubmit="handleAddStation(event)">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="stationName">Station Name</label>
+                    <input id="stationName" type="text" placeholder="e.g. Downtown SuperCharger" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="stationLocation">Location</label>
+                    <input id="stationLocation" type="text" placeholder="e.g. 123 Main St, City" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="stationPorts">Charging Ports</label>
+                        <input id="stationPorts" type="number" placeholder="e.g. 8" min="1" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="stationPower">Max Power (kW)</label>
+                        <input id="stationPower" type="number" placeholder="e.g. 150" min="1" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="stationPrice">Price per kWh ($)</label>
+                    <input id="stationPrice" type="number" step="0.01" placeholder="e.g. 0.30" min="0.01" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" onclick="closeAddStationModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition duration-200">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200 flex items-center">
+                        <span>Add Station</span>
+                        <div id="addStationLoader" class="loader hidden ml-2" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Edit Vehicle Modal -->
+    <div id="editVehicleModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-40">
+        <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold">Edit Vehicle</h3>
+                <button onclick="closeEditVehicleModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <form id="editVehicleForm" onsubmit="handleEditVehicle(event)">
+                <input type="hidden" id="editVehicleId">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleModel">Vehicle Model</label>
+                    <input id="editVehicleModel" type="text" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleRegistration">Registration Number</label>
+                    <input id="editVehicleRegistration" type="text" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleBatteryCapacity">Battery Capacity (kWh)</label>
+                    <input id="editVehicleBatteryCapacity" type="number" min="1" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleYear">Year</label>
+                    <input id="editVehicleYear" type="number" min="1990" max="2025" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleColor">Color</label>
+                    <input id="editVehicleColor" type="text" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="editVehicleBatteryLevel">Current Battery Level (%)</label>
+                    <input id="editVehicleBatteryLevel" type="number" min="0" max="100" class="w-full p-3 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" required>
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" onclick="closeEditVehicleModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition duration-200">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200 flex items-center">
+                        <span>Save Changes</span>
+                        <div id="editVehicleLoader" class="loader hidden ml-2" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // MongoDB Collection name and app slug
+        const APP_SLUG = "evms-123456";
+        const USERS_COLLECTION = "users";
+        const VEHICLES_COLLECTION = "vehicles";
+        const STATIONS_COLLECTION = "stations";
+        const MAINTENANCE_COLLECTION = "maintenance";
+        const BILLING_COLLECTION = "billing";
+
+        // Current user data
+        let currentUser = null;
+        let userVehiclesData = [];
+        let allStationsData = [];
+        let allUsersData = [];
+        let allVehiclesData = [];
+        
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            toast.className = `toast p-4 mb-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+            toast.innerHTML = `
+                <div class="flex items-center">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-exclamation-circle'} mr-2 text-xl"></i>
+                    <div>${message}</div>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Remove toast after 4 seconds
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 4000);
+        }
+        
+        // Show loading overlay
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+        
+        // Hide loading overlay
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        // Toggle between login and register forms
+        function toggleAuth(type) {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const loginBtn = document.getElementById('loginBtn');
+            const registerBtn = document.getElementById('registerBtn');
+
+            if (type === 'login') {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                loginBtn.classList.add('bg-blue-500', 'text-white');
+                loginBtn.classList.remove('bg-gray-300');
+                registerBtn.classList.add('bg-gray-300');
+                registerBtn.classList.remove('bg-blue-500', 'text-white');
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                registerBtn.classList.add('bg-blue-500', 'text-white');
+                registerBtn.classList.remove('bg-gray-300');
+                loginBtn.classList.add('bg-gray-300');
+                loginBtn.classList.remove('bg-blue-500', 'text-white');
+            }
+        }
+
+        // Handle login
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            // Show loading state
+            document.getElementById('login-btn-text').textContent = 'Processing...';
+            document.getElementById('login-loader').classList.remove('hidden');
+
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: USERS_COLLECTION,
+                        conditions: { email, password }
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.result && data.result.length > 0) {
+                    currentUser = data.result[0];
+                    showDashboard();
+                    showToast(`Welcome back, ${currentUser.name}!`);
+                } else {
+                    showToast('Invalid email or password', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showToast('Login failed. Please try again.', 'error');
+            } finally {
+                // Reset loading state
+                document.getElementById('login-btn-text').textContent = 'Login';
+                document.getElementById('login-loader').classList.add('hidden');
+            }
+        }
+
+        // Handle register
+        async function handleRegister(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            
+            // Show loading state
+            document.getElementById('register-btn-text').textContent = 'Processing...';
+            document.getElementById('register-loader').classList.remove('hidden');
+
+            try {
+                // First check if user already exists
+                const checkUser = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: USERS_COLLECTION,
+                        conditions: { email }
+                    })
+                });
+                
+                const checkData = await checkUser.json();
+                
+                if (checkData.result && checkData.result.length > 0) {
+                    showToast('Email already registered', 'error');
+                    return;
+                }
+                
+                // Create new user
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'create',
+                        collection: USERS_COLLECTION,
+                        data: { 
+                            name, 
+                            email, 
+                            password, 
+                            role: 'user',
+                            createdAt: new Date().toISOString()
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Registration successful! Please login.');
+                    toggleAuth('login');
+                    
+                    // Clear form
+                    document.getElementById('register-name').value = '';
+                    document.getElementById('register-email').value = '';
+                    document.getElementById('register-password').value = '';
+                } else {
+                    showToast('Registration failed', 'error');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showToast('Registration failed', 'error');
+            } finally {
+                // Reset loading state
+                document.getElementById('register-btn-text').textContent = 'Register';
+                document.getElementById('register-loader').classList.add('hidden');
+            }
+        }
+
+        // Show dashboard
+        function showDashboard() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('userEmail').textContent = currentUser.email;
+            document.getElementById('userName').textContent = currentUser.name;
+
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminPanel').classList.remove('hidden');
+                document.getElementById('userDashboard').classList.add('hidden');
+                loadAdminData();
+            } else {
+                document.getElementById('adminPanel').classList.add('hidden');
+                document.getElementById('userDashboard').classList.remove('hidden');
+                loadUserData();
+            }
+        }
+
+        // Administrator functions
+        async function loadAdminData() {
+            showLoading();
+            
+            try {
+                // Load users
+                const usersResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: USERS_COLLECTION
+                    })
+                });
+
+                const usersData = await usersResponse.json();
+                allUsersData = usersData.result || [];
+                
+                // Update analytics
+                document.getElementById('totalUsers').textContent = allUsersData.length;
+                
+                // Render user list
+                renderUsersList(allUsersData);
+                
+                // Load vehicles
+                const vehiclesResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: VEHICLES_COLLECTION
+                    })
+                });
+
+                const vehiclesData = await vehiclesResponse.json();
+                allVehiclesData = vehiclesData.result || [];
+                
+                // Update analytics
+                document.getElementById('totalVehicles').textContent = allVehiclesData.length;
+                
+                // Render vehicles list
+                renderVehiclesList(allVehiclesData);
+                
+                // Load stations
+                const stationsResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: STATIONS_COLLECTION
+                    })
+                });
+
+                const stationsData = await stationsResponse.json();
+                allStationsData = stationsData.result || [];
+                
+                // Update analytics
+                document.getElementById('totalStations').textContent = allStationsData.length;
+                
+                // Calculate total revenue (from billing)
+                const billingResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: BILLING_COLLECTION
+                    })
+                });
+
+                const billingData = await billingResponse.json();
+                const billingEntries = billingData.result || [];
+                
+                const totalRevenue = billingEntries.reduce((sum, entry) => {
+                    return sum + (parseFloat(entry.amount.replace('$', '')) || 0);
+                }, 0);
+                
+                document.getElementById('totalRevenue').textContent = `$${totalRevenue.toFixed(2)}`;
+                
+                // Render stations list
+                renderStationsList(allStationsData);
+                
+            } catch (error) {
+                console.error('Admin data loading error:', error);
+                showToast('Failed to load data', 'error');
+            } finally {
+                hideLoading();
+            }
+            
+            // Set up search listeners
+            document.getElementById('userSearchInput').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const filteredUsers = allUsersData.filter(user => 
+                    user.name.toLowerCase().includes(searchTerm) || 
+                    user.email.toLowerCase().includes(searchTerm)
+                );
+                renderUsersList(filteredUsers);
+            });
+            
+            document.getElementById('vehicleSearchInput').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const filteredVehicles = allVehiclesData.filter(vehicle => 
+                    vehicle.model.toLowerCase().includes(searchTerm) || 
+                    vehicle.registrationNumber.toLowerCase().includes(searchTerm)
+                );
+                renderVehiclesList(filteredVehicles);
+            });
+            
+            // Set up admin refresh button
+            document.getElementById('adminRefreshBtn').addEventListener('click', loadAdminData);
+        }
+
+        function renderUsersList(users) {
+            const usersList = document.getElementById('usersList');
+            
+            if (users.length === 0) {
+                usersList.innerHTML = '<p class="text-center text-gray-500 italic">No users found</p>';
+                return;
+            }
+            
+            usersList.innerHTML = users.map(user => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                    <div>
+                        <div class="font-medium">${user.name}</div>
+                        <div class="text-sm text-gray-600">${user.email}</div>
+                        <div class="text-xs mt-1">
+                            <span class="px-2 py-1 rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">
+                                ${user.role}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="toggleUserRole('${user._id}', '${user.role === 'admin' ? 'user' : 'admin'}')" class="text-blue-500 hover:text-blue-700">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button onclick="deleteUser('${user._id}')" class="text-red-500 hover:text-red-700">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderVehiclesList(vehicles) {
+            const vehiclesList = document.getElementById('vehiclesList');
+            
+            if (vehicles.length === 0) {
+                vehiclesList.innerHTML = '<p class="text-center text-gray-500 italic">No vehicles found</p>';
+                return;
+            }
+            
+            vehiclesList.innerHTML = vehicles.map(vehicle => {
+                // Find the owner's name
+                const owner = allUsersData.find(user => user._id === vehicle.userId);
+                const ownerName = owner ? owner.name : 'Unknown';
+                
+                return `
+                <div class="p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                    <div class="flex justify-between items-center">
+                        <div class="font-medium">${vehicle.model}</div>
+                        <div class="flex space-x-2">
+                            <button onclick="editVehicle('${vehicle._id}')" class="text-blue-500 hover:text-blue-700">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button onclick="deleteVehicle('${vehicle._id}')" class="text-red-500 hover:text-red-700">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600">Reg: ${vehicle.registrationNumber}</div>
+                    <div class="text-sm text-gray-600">Owner: ${ownerName}</div>
+                    <div class="mt-2">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="h-2.5 rounded-full ${getBatteryColorClass(vehicle.batteryLevel || 0)}" style="width: ${vehicle.batteryLevel || 0}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-600 mt-1">
+                            <span>${vehicle.batteryLevel || 0}%</span>
+                            <span>${vehicle.batteryCapacity || 0} kWh</span>
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        function renderStationsList(stations) {
+            const stationsList = document.getElementById('stationsList');
+            
+            if (stations.length === 0) {
+                stationsList.innerHTML = '<p class="text-center text-gray-500 italic">No charging stations found</p>';
+                return;
+            }
+            
+            stationsList.innerHTML = stations.map(station => `
+                <div class="p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                    <div class="flex justify-between items-center">
+                        <div class="font-medium">${station.name}</div>
+                        <div class="flex space-x-2">
+                            <button onclick="editStation('${station._id}')" class="text-blue-500 hover:text-blue-700">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button onclick="deleteStation('${station._id}')" class="text-red-500 hover:text-red-700">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600">${station.location}</div>
+                    <div class="flex justify-between text-sm mt-2">
+                        <span>Ports: ${station.ports}</span>
+                        <span>${station.power} kW</span>
+                        <span>${station.price}/kWh</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="px-2 py-1 text-xs rounded-full ${station.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${station.available ? 'Available' : 'Busy'}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleUserRole(userId, newRole) {
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'update',
+                        collection: USERS_COLLECTION,
+                        id: userId,
+                        data: { role: newRole }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadAdminData();
+                    showToast(`User role updated to ${newRole}`);
+                } else {
+                    showToast('Failed to update user role', 'error');
+                }
+            } catch (error) {
+                console.error('Role update error:', error);
+                showToast('Failed to update user role', 'error');
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'delete',
+                        collection: USERS_COLLECTION,
+                        id: userId
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Also delete the user's vehicles
+                    await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            appSlug: APP_SLUG,
+                            action: 'delete',
+                            collection: VEHICLES_COLLECTION,
+                            conditions: { userId }
+                        })
+                    });
+                    
+                    loadAdminData();
+                    showToast('User deleted successfully');
+                } else {
+                    showToast('Failed to delete user', 'error');
+                }
+            } catch (error) {
+                console.error('Delete user error:', error);
+                showToast('Failed to delete user', 'error');
+            }
+        }
+
+        async function deleteVehicle(vehicleId) {
+            if (!confirm('Are you sure you want to delete this vehicle?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'delete',
+                        collection: VEHICLES_COLLECTION,
+                        id: vehicleId
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    if (currentUser.role === 'admin') {
+                        loadAdminData();
+                    } else {
+                        loadUserData();
+                    }
+                    showToast('Vehicle deleted successfully');
+                } else {
+                    showToast('Failed to delete vehicle', 'error');
+                }
+            } catch (error) {
+                console.error('Delete vehicle error:', error);
+                showToast('Failed to delete vehicle', 'error');
+            }
+        }
+
+        async function deleteStation(stationId) {
+            if (!confirm('Are you sure you want to delete this charging station?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'delete',
+                        collection: STATIONS_COLLECTION,
+                        id: stationId
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    loadAdminData();
+                    showToast('Charging station deleted successfully');
+                } else {
+                    showToast('Failed to delete charging station', 'error');
+                }
+            } catch (error) {
+                console.error('Delete station error:', error);
+                showToast('Failed to delete charging station', 'error');
+            }
+        }
+
+        function editVehicle(vehicleId) {
+            const vehicle = allVehiclesData.find(v => v._id === vehicleId);
+            
+            if (!vehicle) {
+                showToast('Vehicle not found', 'error');
+                return;
+            }
+            
+            document.getElementById('editVehicleId').value = vehicleId;
+            document.getElementById('editVehicleModel').value = vehicle.model || '';
+            document.getElementById('editVehicleRegistration').value = vehicle.registrationNumber || '';
+            document.getElementById('editVehicleBatteryCapacity').value = vehicle.batteryCapacity || 0;
+            document.getElementById('editVehicleYear').value = vehicle.year || 2023;
+            document.getElementById('editVehicleColor').value = vehicle.color || '';
+            document.getElementById('editVehicleBatteryLevel').value = vehicle.batteryLevel || 0;
+            
+            document.getElementById('editVehicleModal').classList.remove('hidden');
+        }
+        
+        function closeEditVehicleModal() {
+            document.getElementById('editVehicleModal').classList.add('hidden');
+        }
+        
+        async function handleEditVehicle(event) {
+            event.preventDefault();
+            
+            const vehicleId = document.getElementById('editVehicleId').value;
+            const model = document.getElementById('editVehicleModel').value;
+            const registrationNumber = document.getElementById('editVehicleRegistration').value;
+            const batteryCapacity = document.getElementById('editVehicleBatteryCapacity').value;
+            const year = document.getElementById('editVehicleYear').value;
+            const color = document.getElementById('editVehicleColor').value;
+            const batteryLevel = document.getElementById('editVehicleBatteryLevel').value;
+            
+            document.getElementById('editVehicleLoader').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'update',
+                        collection: VEHICLES_COLLECTION,
+                        id: vehicleId,
+                        data: {
+                            model,
+                            registrationNumber,
+                            batteryCapacity,
+                            batteryLevel,
+                            year,
+                            color
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeEditVehicleModal();
+                    if (currentUser.role === 'admin') {
+                        loadAdminData();
+                    } else {
+                        loadUserData();
+                    }
+                    showToast('Vehicle updated successfully');
+                } else {
+                    showToast('Failed to update vehicle', 'error');
+                }
+            } catch (error) {
+                console.error('Update vehicle error:', error);
+                showToast('Failed to update vehicle', 'error');
+            } finally {
+                document.getElementById('editVehicleLoader').classList.add('hidden');
+            }
+        }
+
+        function showAddStationModal() {
+            document.getElementById('addStationModal').classList.remove('hidden');
+        }
+        
+        function closeAddStationModal() {
+            document.getElementById('addStationModal').classList.add('hidden');
+        }
+        
+        async function handleAddStation(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('stationName').value;
+            const location = document.getElementById('stationLocation').value;
+            const ports = document.getElementById('stationPorts').value;
+            const power = document.getElementById('stationPower').value;
+            const price = document.getElementById('stationPrice').value;
+            
+            document.getElementById('addStationLoader').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'create',
+                        collection: STATIONS_COLLECTION,
+                        data: {
+                            name,
+                            location,
+                            ports: parseInt(ports),
+                            power: parseInt(power),
+                            price: `$${parseFloat(price).toFixed(2)}`,
+                            available: true,
+                            createdAt: new Date().toISOString()
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeAddStationModal();
+                    loadAdminData();
+                    
+                    // Clear form
+                    document.getElementById('stationName').value = '';
+                    document.getElementById('stationLocation').value = '';
+                    document.getElementById('stationPorts').value = '';
+                    document.getElementById('stationPower').value = '';
+                    document.getElementById('stationPrice').value = '';
+                    
+                    showToast('Charging station added successfully');
+                } else {
+                    showToast('Failed to add charging station', 'error');
+                }
+            } catch (error) {
+                console.error('Add station error:', error);
+                showToast('Failed to add charging station', 'error');
+            } finally {
+                document.getElementById('addStationLoader').classList.add('hidden');
+            }
+        }
+
+        // User functions
+        async function loadUserData() {
+            showLoading();
+            
+            try {
+                // Load user's vehicles
+                const vehiclesResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: VEHICLES_COLLECTION,
+                        conditions: { userId: currentUser._id }
+                    })
+                });
+
+                const vehiclesData = await vehiclesResponse.json();
+                userVehiclesData = vehiclesData.result || [];
+                
+                // Update vehicle count in summary
+                document.getElementById('totalUserVehicles').textContent = userVehiclesData.length;
+                
+                // Calculate average battery level
+                if (userVehiclesData.length > 0) {
+                    const avgBattery = userVehiclesData.reduce((sum, vehicle) => sum + (vehicle.batteryLevel || 0), 0) / userVehiclesData.length;
+                    document.getElementById('avgBatteryLevel').textContent = `${Math.round(avgBattery)}%`;
+                }
+                
+                // Render user vehicles
+                renderUserVehicles(userVehiclesData);
+                
+                // Update vehicle select for battery status
+                updateVehicleSelect(userVehiclesData);
+
+                // Load nearby stations
+                loadNearbyStations();
+                
+                // Load maintenance schedule
+                loadMaintenanceSchedule();
+                
+                // Load billing history
+                loadBillingHistory();
+                
+            } catch (error) {
+                console.error('User data loading error:', error);
+                showToast('Failed to load data', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function renderUserVehicles(vehicles) {
+            const userVehicles = document.getElementById('userVehicles');
+            
+            if (vehicles.length === 0) {
+                userVehicles.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="bi bi-car-front text-gray-300 text-5xl"></i>
+                        <p class="mt-2 text-gray-500">No vehicles added yet</p>
+                        <p class="text-sm text-gray-400">Click "Add Vehicle" to get started</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            userVehicles.innerHTML = vehicles.map(vehicle => `
+                <div class="p-4 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                    <div class="flex justify-between items-center">
+                        <div class="font-medium">${vehicle.model}</div>
+                        <div class="flex space-x-2">
+                            <button onclick="editVehicle('${vehicle._id}')" class="text-blue-500 hover:text-blue-700">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button onclick="deleteVehicle('${vehicle._id}')" class="text-red-500 hover:text-red-700">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600">Reg: ${vehicle.registrationNumber}</div>
+                    <div class="text-sm text-gray-600">${vehicle.year || 'N/A'} • ${vehicle.color || 'N/A'}</div>
+                    <div class="mt-3">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="h-2.5 rounded-full ${getBatteryColorClass(vehicle.batteryLevel || 0)}" style="width: ${vehicle.batteryLevel || 0}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-600 mt-1">
+                            <span>${vehicle.batteryLevel || 0}% Battery</span>
+                            <span>${vehicle.batteryCapacity || 0} kWh</span>
+                        </div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-2 gap-2">
+                        <button onclick="updateBatteryStatus('${vehicle._id}')" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition">
+                            <i class="bi bi-battery-half"></i> Battery Details
+                        </button>
+                        <button onclick="scheduleCharge('${vehicle._id}')" class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition">
+                            <i class="bi bi-lightning-charge"></i> Schedule Charge
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getBatteryColorClass(level) {
+            if (level <= 20) return 'bg-red-500';
+            if (level <= 50) return 'bg-yellow-500';
+            return 'bg-green-500';
+        }
+
+        function updateVehicleSelect(vehicles) {
+            const select = document.getElementById('batteryVehicleSelect');
+            
+            // Clear existing options except the first one
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // Add vehicles
+            vehicles.forEach(vehicle => {
+                const option = document.createElement('option');
+                option.value = vehicle._id;
+                option.textContent = `${vehicle.model} (${vehicle.registrationNumber})`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateBatteryStatus(vehicleId) {
+            const batteryStatus = document.getElementById('batteryStatus');
+            
+            if (!vehicleId) {
+                // Check if a vehicle is selected in the dropdown
+                const select = document.getElementById('batteryVehicleSelect');
+                if (select.value) {
+                    vehicleId = select.value;
+                } else {
+                    batteryStatus.innerHTML = `
+                        <p class="text-gray-500 italic text-center">Select a vehicle to view battery status</p>
+                    `;
+                    return;
+                }
+            } else {
+                // If vehicleId is provided, set the dropdown to that vehicle
+                document.getElementById('batteryVehicleSelect').value = vehicleId;
+            }
+            
+            const vehicle = userVehiclesData.find(v => v._id === vehicleId);
+            
+            if (!vehicle) {
+                batteryStatus.innerHTML = `
+                    <p class="text-red-500 italic text-center">Vehicle not found</p>
+                `;
+                return;
+            }
+            
+            const batteryLevel = vehicle.batteryLevel || 0;
+            const batteryCapacity = vehicle.batteryCapacity || 0;
+            const estimatedRange = Math.round(batteryLevel * 3.5); // Simple calculation: ~3.5 miles per %
+            const chargeTime = Math.round((100 - batteryLevel) * 0.4); // Simple calculation: ~0.4 hour per %
+            
+            batteryStatus.innerHTML = `
+                <div class="flex flex-col items-center mb-4">
+                    <div class="text-center">
+                        <i class="bi bi-battery${getBatteryIcon(batteryLevel)} text-4xl ${batteryLevel <= 20 ? 'text-red-500' : batteryLevel <= 50 ? 'text-yellow-500' : 'text-green-500'}"></i>
+                    </div>
+                    <div class="text-3xl font-bold mt-2 ${batteryLevel <= 20 ? 'text-red-500 pulse' : ''}">${batteryLevel}%</div>
+                    <div class="text-sm text-gray-600">Battery Level</div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-3 bg-gray-50 rounded text-center">
+                        <div class="text-gray-500 text-sm">Capacity</div>
+                        <div class="font-semibold">${batteryCapacity} kWh</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded text-center">
+                        <div class="text-gray-500 text-sm">Est. Range</div>
+                        <div class="font-semibold">${estimatedRange} miles</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded text-center">
+                        <div class="text-gray-500 text-sm">Time to Full</div>
+                        <div class="font-semibold">${chargeTime} hours</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded text-center">
+                        <div class="text-gray-500 text-sm">Health</div>
+                        <div class="font-semibold">98%</div>
+                    </div>
+                </div>
+                
+                <button onclick="simulateCharge('${vehicle._id}')" class="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition">
+                    <i class="bi bi-lightning-charge"></i> Simulate Charging
+                </button>
+            `;
+        }
+
+        function getBatteryIcon(level) {
+            if (level <= 20) return '-empty';
+            if (level <= 50) return '-half';
+            if (level < 90) return '';
+            return '-full';
+        }
+
+        async function simulateCharge(vehicleId) {
+            const vehicle = userVehiclesData.find(v => v._id === vehicleId);
+            
+            if (!vehicle) {
+                showToast('Vehicle not found', 'error');
+                return;
+            }
+            
+            // Increase battery level by a random amount (10-25%)
+            let newBatteryLevel = Math.min(100, vehicle.batteryLevel + Math.floor(Math.random() * 16) + 10);
+            
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'update',
+                        collection: VEHICLES_COLLECTION,
+                        id: vehicleId,
+                        data: { batteryLevel: newBatteryLevel }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Add billing entry for charging
+                    const chargingCost = ((newBatteryLevel - vehicle.batteryLevel) / 100 * vehicle.batteryCapacity * 0.15).toFixed(2);
+                    
+                    await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            appSlug: APP_SLUG,
+                            action: 'create',
+                            collection: BILLING_COLLECTION,
+                            data: {
+                                userId: currentUser._id,
+                                vehicleId,
+                                type: 'Charging',
+                                description: `Charged ${vehicle.model}`,
+                                amount: `$${chargingCost}`,
+                                date: new Date().toISOString()
+                            }
+                        })
+                    });
+                    
+                    showToast(`Simulated charging: Battery increased to ${newBatteryLevel}%`);
+                    loadUserData();
+                } else {
+                    showToast('Failed to update battery level', 'error');
+                }
+            } catch (error) {
+                console.error('Battery update error:', error);
+                showToast('Failed to update battery level', 'error');
+            }
+        }
+
+        async function loadNearbyStations() {
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: STATIONS_COLLECTION
+                    })
+                });
+
+                const data = await response.json();
+                const stations = data.result || [];
+                
+                // For demo purposes, consider all stations as "nearby"
+                document.getElementById('nearbyStationsCount').textContent = stations.length;
+                
+                const stationsContainer = document.getElementById('nearbyStations');
+                
+                if (stations.length === 0) {
+                    stationsContainer.innerHTML = `
+                        <p class="text-center text-gray-500 italic">No charging stations found nearby</p>
+                    `;
+                    return;
+                }
+                
+                stationsContainer.innerHTML = stations.map(station => `
+                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                        <div>
+                            <div class="font-medium flex items-center">
+                                <span class="station-marker ${station.available ? 'bg-green-500' : 'bg-red-500'}"></span>
+                                ${station.name}
+                            </div>
+                            <div class="text-sm text-gray-600">${station.location}</div>
+                            <div class="text-xs mt-1">
+                                <span class="text-blue-600">${station.price}/kWh</span> • 
+                                <span>${station.power} kW</span> • 
+                                <span>${station.ports} ports</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="px-2 py-1 text-xs rounded-full ${station.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${station.available ? 'Available' : 'Busy'}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading stations:', error);
+                document.getElementById('nearbyStations').innerHTML = `
+                    <p class="text-center text-red-500">Failed to load charging stations</p>
+                `;
+            }
+        }
+
+        async function loadMaintenanceSchedule() {
+            try {
+                // Try to get maintenance records for the user
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: MAINTENANCE_COLLECTION,
+                        conditions: { userId: currentUser._id }
+                    })
+                });
+
+                const data = await response.json();
+                let maintenanceItems = data.result || [];
+                
+                // If no maintenance records exist, create some sample ones
+                if (maintenanceItems.length === 0 && userVehiclesData.length > 0) {
+                    const now = new Date();
+                    
+                    // Generate dates in the future
+                    const getRandomFutureDate = (minDays, maxDays) => {
+                        const futureDate = new Date();
+                        futureDate.setDate(now.getDate() + minDays + Math.floor(Math.random() * (maxDays - minDays)));
+                        return futureDate.toISOString().split('T')[0];
+                    };
+                    
+                    const scheduledItems = userVehiclesData.flatMap(vehicle => [
+                        {
+                            userId: currentUser._id,
+                            vehicleId: vehicle._id,
+                            vehicleName: vehicle.model,
+                            regNumber: vehicle.registrationNumber,
+                            service: 'Battery Health Check',
+                            date: getRandomFutureDate(7, 30),
+                            status: 'Scheduled',
+                            createdAt: new Date().toISOString()
+                        },
+                        {
+                            userId: currentUser._id,
+                            vehicleId: vehicle._id,
+                            vehicleName: vehicle.model,
+                            regNumber: vehicle.registrationNumber,
+                            service: 'Tire Rotation',
+                            date: getRandomFutureDate(14, 45),
+                            status: 'Pending',
+                            createdAt: new Date().toISOString()
+                        }
+                    ]);
+                    
+                    // Create the scheduled maintenance items
+                    for (const item of scheduledItems) {
+                        await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                appSlug: APP_SLUG,
+                                action: 'create',
+                                collection: MAINTENANCE_COLLECTION,
+                                data: item
+                            })
+                        });
+                    }
+                    
+                    maintenanceItems = scheduledItems;
+                }
+                
+                const maintenanceContainer = document.getElementById('maintenanceSchedule');
+                
+                if (maintenanceItems.length === 0) {
+                    maintenanceContainer.innerHTML = `
+                        <p class="text-center text-gray-500 italic">No scheduled maintenance</p>
+                    `;
+                    return;
+                }
+                
+                // Sort by date
+                maintenanceItems.sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                maintenanceContainer.innerHTML = maintenanceItems.map(item => {
+                    const statusClass = item.status === 'Completed' 
+                        ? 'bg-green-100 text-green-800'
+                        : item.status === 'Scheduled' 
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-yellow-100 text-yellow-800';
+                    
+                    return `
+                    <div class="p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                        <div class="flex justify-between items-center">
+                            <div class="font-medium">${item.service}</div>
+                            <span class="px-2 py-1 text-xs rounded-full ${statusClass}">
+                                ${item.status}
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-600">Vehicle: ${item.vehicleName} (${item.regNumber})</div>
+                        <div class="text-sm text-gray-600">Date: ${item.date}</div>
+                        
+                        ${item.status !== 'Completed' ? `
+                            <div class="mt-2 text-right">
+                                <button onclick="completeMaintenanceItem('${item._id}')" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition">
+                                    <i class="bi bi-check2"></i> Mark as Completed
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `}).join('');
+                
+            } catch (error) {
+                console.error('Error loading maintenance schedule:', error);
+                document.getElementById('maintenanceSchedule').innerHTML = `
+                    <p class="text-center text-red-500">Failed to load maintenance schedule</p>
+                `;
+            }
+        }
+
+        async function completeMaintenanceItem(itemId) {
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'update',
+                        collection: MAINTENANCE_COLLECTION,
+                        id: itemId,
+                        data: { status: 'Completed' }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Add a billing entry for this maintenance
+                    const maintenanceResponse = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            appSlug: APP_SLUG,
+                            action: 'read',
+                            collection: MAINTENANCE_COLLECTION,
+                            id: itemId
+                        })
+                    });
+                    
+                    const maintenanceData = await maintenanceResponse.json();
+                    const maintenanceItem = maintenanceData.result;
+                    
+                    if (maintenanceItem) {
+                        // Generate a random cost between $80 and $250
+                        const cost = (Math.floor(Math.random() * 171) + 80).toFixed(2);
+                        
+                        await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                appSlug: APP_SLUG,
+                                action: 'create',
+                                collection: BILLING_COLLECTION,
+                                data: {
+                                    userId: currentUser._id,
+                                    vehicleId: maintenanceItem.vehicleId,
+                                    type: 'Maintenance',
+                                    description: `${maintenanceItem.service} for ${maintenanceItem.vehicleName}`,
+                                    amount: `$${cost}`,
+                                    date: new Date().toISOString()
+                                }
+                            })
+                        });
+                    }
+                    
+                    showToast('Maintenance marked as completed');
+                    loadMaintenanceSchedule();
+                    loadBillingHistory();
+                } else {
+                    showToast('Failed to update maintenance status', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating maintenance:', error);
+                showToast('Failed to update maintenance status', 'error');
+            }
+        }
+
+        async function loadBillingHistory() {
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'read',
+                        collection: BILLING_COLLECTION,
+                        conditions: { userId: currentUser._id }
+                    })
+                });
+
+                const data = await response.json();
+                let billingItems = data.result || [];
+                
+                // If no billing records exist and there are vehicles, create some sample ones
+                if (billingItems.length === 0 && userVehiclesData.length > 0) {
+                    const now = new Date();
+                    
+                    // Generate dates in the past
+                    const getRandomPastDate = (minDays, maxDays) => {
+                        const pastDate = new Date();
+                        pastDate.setDate(now.getDate() - minDays - Math.floor(Math.random() * (maxDays - minDays)));
+                        return pastDate.toISOString();
+                    };
+                    
+                    const billingEntries = userVehiclesData.flatMap(vehicle => [
+                        {
+                            userId: currentUser._id,
+                            vehicleId: vehicle._id,
+                            type: 'Charging',
+                            description: `Charged ${vehicle.model} at Downtown Station`,
+                            amount: `$${(Math.random() * 20 + 10).toFixed(2)}`,
+                            date: getRandomPastDate(1, 10)
+                        },
+                        {
+                            userId: currentUser._id,
+                            vehicleId: vehicle._id,
+                            type: 'Maintenance',
+                            description: `Regular checkup for ${vehicle.model}`,
+                            amount: `$${(Math.random() * 100 + 50).toFixed(2)}`,
+                            date: getRandomPastDate(15, 30)
+                        }
+                    ]);
+                    
+                    // Create the billing entries
+                    for (const entry of billingEntries) {
+                        await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                appSlug: APP_SLUG,
+                                action: 'create',
+                                collection: BILLING_COLLECTION,
+                                data: entry
+                            })
+                        });
+                    }
+                    
+                    billingItems = billingEntries;
+                }
+                
+                // Store the billing data for filtering
+                window.billingData = billingItems;
+                
+                // Initial render with all transactions
+                renderBillingHistory(billingItems);
+                
+            } catch (error) {
+                console.error('Error loading billing history:', error);
+                document.getElementById('billingHistory').innerHTML = `
+                    <p class="text-center text-red-500">Failed to load billing history</p>
+                `;
+            }
+        }
+        
+        function renderBillingHistory(items) {
+            const billingContainer = document.getElementById('billingHistory');
+            
+            if (items.length === 0) {
+                billingContainer.innerHTML = `
+                    <p class="text-center text-gray-500 italic">No billing history found</p>
+                `;
+                return;
+            }
+            
+            // Sort by date (newest first)
+            items.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            billingContainer.innerHTML = items.map(item => {
+                const date = new Date(item.date);
+                const formattedDate = date.toLocaleDateString();
+                
+                const typeClass = item.type === 'Charging' 
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-purple-100 text-purple-800';
+                
+                return `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition duration-200">
+                    <div>
+                        <div class="font-medium">${item.description}</div>
+                        <div class="text-sm text-gray-600">${formattedDate}</div>
+                        <div class="mt-1">
+                            <span class="px-2 py-1 text-xs rounded-full ${typeClass}">
+                                ${item.type}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="font-medium text-blue-600">${item.amount}</div>
+                </div>
+            `}).join('');
+        }
+        
+        function filterBillingHistory() {
+            const filter = document.getElementById('billingFilter').value;
+            const allItems = window.billingData || [];
+            
+            if (filter === 'all') {
+                renderBillingHistory(allItems);
+            } else {
+                const filteredItems = allItems.filter(item => item.type.toLowerCase() === filter);
+                renderBillingHistory(filteredItems);
+            }
+        }
+
+        // Vehicle management functions
+        function showAddVehicleModal() {
+            document.getElementById('addVehicleModal').classList.remove('hidden');
+        }
+
+        function closeAddVehicleModal() {
+            document.getElementById('addVehicleModal').classList.add('hidden');
+        }
+
+        async function handleAddVehicle(event) {
+            event.preventDefault();
+            
+            const model = document.getElementById('vehicleModel').value;
+            const registrationNumber = document.getElementById('vehicleRegistration').value;
+            const batteryCapacity = document.getElementById('vehicleBatteryCapacity').value;
+            const year = document.getElementById('vehicleYear').value;
+            const color = document.getElementById('vehicleColor').value;
+            
+            document.getElementById('addVehicleLoader').classList.remove('hidden');
+
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/mongodb', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer YKcIKF0WLJNxCQlMDaJdCFBntOn2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        appSlug: APP_SLUG,
+                        action: 'create',
+                        collection: VEHICLES_COLLECTION,
+                        data: {
+                            userId: currentUser._id,
+                            model,
+                            registrationNumber,
+                            batteryCapacity: parseInt(batteryCapacity),
+                            batteryLevel: 100,
+                            year: parseInt(year),
+                            color,
+                            createdAt: new Date().toISOString()
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    closeAddVehicleModal();
+                    
+                    // Clear form
+                    document.getElementById('vehicleModel').value = '';
+                    document.getElementById('vehicleRegistration').value = '';
+                    document.getElementById('vehicleBatteryCapacity').value = '';
+                    document.getElementById('vehicleYear').value = '';
+                    document.getElementById('vehicleColor').value = '';
+                    
+                    loadUserData();
+                    showToast('Vehicle added successfully');
+                } else {
+                    showToast('Failed to add vehicle', 'error');
+                }
+            } catch (error) {
+                console.error('Add vehicle error:', error);
+                showToast('Failed to add vehicle', 'error');
+            } finally {
+                document.getElementById('addVehicleLoader').classList.add('hidden');
+            }
+        }
+
+        // Logout function
+        function logout() {
+            currentUser = null;
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+            // Clear sensitive form fields
+            document.getElementById('login-password').value = '';
+            document.getElementById('register-password').value = '';
+            toggleAuth('login');
+        }
+
+        // Helper function to simulate schedule charging
+        function scheduleCharge(vehicleId) {
+            const vehicle = userVehiclesData.find(v => v._id === vehicleId);
+            
+            if (!vehicle) {
+                showToast('Vehicle not found', 'error');
+                return;
+            }
+            
+            showToast(`Scheduled charging for ${vehicle.model}. Charging will begin at lower electricity rates.`);
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            toggleAuth('login');
+            
+            // Mock data for stations
+            if (!allStationsData.length) {
+                allStationsData = [
+                    { id: 's1', name: 'Downtown SuperCharger', location: '123 Main St', distance: '2.5 km', available: true, power: 150, price: '$0.30', ports: 10 },
+                    { id: 's2', name: 'Eastside Station', location: '456 Oak Ave', distance: '3.8 km', available: false, power: 100, price: '$0.25', ports: 6 },
+                    { id: 's3', name: 'Westgate Charging', location: '789 Elm Blvd', distance: '5.1 km', available: true, power: 120, price: '$0.28', ports: 8 }
+                ];
+            }
+            
+            // Set up notification button click handler
+            document.getElementById('notificationBtn').addEventListener('click', function() {
+                showToast('You have 3 unread notifications');
+            });
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
